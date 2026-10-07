@@ -1,0 +1,74 @@
+{
+  "keys": [
+    {
+      "mnemonic": "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about",
+      "secretKey": "ed25519:F1kPR175szkGxEL52A9H6Z5ocS2BtaipprK2Hiob9DjGzHTkScrBb1yt44baXPZ3LxyHcsTPdBjHmn6zx147txH",
+      "publicKey": "ed25519:6j4b6zUaty6fD1awqcGCCU9JYGCWYUgdJhQrzfZhqE25",
+      "implicitAccount": "5510e2b44cae6eb807e3e0e45d579dda058c274abcba15e5cb84636f5d1ee412"
+    },
+    {
+      "mnemonic": "legal winner thank year wave sausage worth useful legal winner thank yellow",
+      "secretKey": "ed25519:2S1RFM3ywBX5649qeYqGRXrQxZuCNM5uYqBoAor7tPhDcQ4udnLqeWffQTHFSjomXmbZvFdAg7PCADyfUK7yrYD6",
+      "publicKey": "ed25519:5shPrRr1NRJL7aTdCMqSSKxfUHvacCTEjCkCEpd26RmJ",
+      "implicitAccount": "486b7638d5a471a78a75a1207bb8d870cce13bbb024dcd5d6784432777316301"
+    },
+    {
+      "mnemonic": "letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic avoid letter advice cage absurd amount doctor acoustic bless",
+      "secretKey": "ed25519:gRsFJPU2U3ZDFvrFx8NMjDf4Wg4YrLwGMiav2WAg99WQoH9maKkC9Rgfkqpc3Xm77jtsmfqMk9PzMCLLi1KzLj2",
+      "publicKey": "ed25519:F7ug8qZShUTYFVBPftXTP1Ghv4TSbW37FVUmrBWVRXct",
+      "implicitAccount": "d1c8a94df4d6776c49e27f9914ca8a9453d1cea9b439762f408a2a5adeeab1f9"
+    }
+  ],
+  "txs": [
+    {
+      "name": "transfer",
+      "signerId": "5510e2b44cae6eb807e3e0e45d579dda058c274abcba15e5cb84636f5d1ee412",
+      "publicKey": "ed25519:6j4b6zUaty6fD1awqcGCCU9JYGCWYUgdJhQrzfZhqE25",
+      "receiverId": "bob.near",
+      "nonce": "123456789012",
+      "blockHash": "7pFeRguuRjfbpzKhLx6Vqx8JxEn9t4xzn7JfP1Aqk2eq",
+      "txHex": "4000000035353130653262343463616536656238303765336530653435643537396464613035386332373461626362613135653563623834363336663564316565343132005510e2b44cae6eb807e3e0e45d579dda058c274abcba15e5cb84636f5d1ee412141a99be1c00000008000000626f622e6e6561726540faa2a39bb65e43443cae9c8906c040a3186f86c6ab20996a7a6cd1f4270e0100000003000080716433b629a33d010000000000",
+      "hash": "FZERXwM5GyWfDXtnrKaCwPcx2VX7wyeUoTqS8iAkCN6m",
+      "signatureHex": "1d3900536c7b03236026e8eb7ded1ed6dcef35dd49e833fb1282ab35955ecc0d4b22a7c88e9654c96a87e20dd0f2ce35ecc45a4e57f75fc18211096814ae870a",
+      "signedTxBase64": "QAAAADU1MTBlMmI0NGNhZTZlYjgwN2UzZTBlNDVkNTc5ZGRhMDU4YzI3NGFiY2JhMTVlNWNiODQ2MzZmNWQxZWU0MTIAVRDitEyubrgH4+DkXVed2gWMJ0q8uhXly4Rjb10e5BIUGpm+HAAAAAgAAABib2IubmVhcmVA+qKjm7ZeQ0Q8rpyJBsBAoxhvhsarIJlqemzR9CcOAQAAAAMAAIBxZDO2KaM9AQAAAAAAAB05AFNsewMjYCbo633tHtbc7zXdSegz+xKCqzWVXswNSyKnyI6WVMlqh+IN0PLONezEWk5X91/BghEJaBSuhwo="
+    },
+    {
+      "name": "ft_transfer_with_storage",
+      "signerId": "5510e2b44cae6eb807e3e0e45d579dda058c274abcba15e5cb84636f5d1ee412",
+      "publicKey": "ed25519:6j4b6zUaty6fD1awqcGCCU9JYGCWYUgdJhQrzfZhqE25",
+      "receiverId": "usdt.tether-token.near",
+      "nonce": "5",
+      "blockHash": "7pFeRguuRjfbpzKhLx6Vqx8JxEn9t4xzn7JfP1Aqk2eq",
+      "txHex": "4000000035353130653262343463616536656238303765336530653435643537396464613035386332373461626362613135653563623834363336663564316565343132005510e2b44cae6eb807e3e0e45d579dda058c274abcba15e5cb84636f5d1ee412050000000000000016000000757364742e7465746865722d746f6b656e2e6e6561726540faa2a39bb65e43443cae9c8906c040a3186f86c6ab20996a7a6cd1f4270e02000000020f00000073746f726167655f6465706f736974320000007b226163636f756e745f6964223a22626f622e6e656172222c22726567697374726174696f6e5f6f6e6c79223a747275657d00e057eb481b00000000485637193cc34300000000000000020b00000066745f7472616e736665722d0000007b2272656365697665725f6964223a22626f622e6e656172222c22616d6f756e74223a2231303030303030227d00e057eb481b000001000000000000000000000000000000",
+      "hash": "AtTsJ9Zu1BkRzaCDRZ45avS4oxLz4vugrZDtbimvwvqw",
+      "signatureHex": "f4d959e5a070d44eadaab70197dc6fe4a9ec4bf4c62660c6e7bb269c7fe0075ebc0e98426af6e8a27a4c51ab7955b42847538f712ad2e0b750ae089cb8452b02",
+      "signedTxBase64": "QAAAADU1MTBlMmI0NGNhZTZlYjgwN2UzZTBlNDVkNTc5ZGRhMDU4YzI3NGFiY2JhMTVlNWNiODQ2MzZmNWQxZWU0MTIAVRDitEyubrgH4+DkXVed2gWMJ0q8uhXly4Rjb10e5BIFAAAAAAAAABYAAAB1c2R0LnRldGhlci10b2tlbi5uZWFyZUD6oqObtl5DRDyunIkGwECjGG+GxqsgmWp6bNH0Jw4CAAAAAg8AAABzdG9yYWdlX2RlcG9zaXQyAAAAeyJhY2NvdW50X2lkIjoiYm9iLm5lYXIiLCJyZWdpc3RyYXRpb25fb25seSI6dHJ1ZX0A4FfrSBsAAAAASFY3GTzDQwAAAAAAAAACCwAAAGZ0X3RyYW5zZmVyLQAAAHsicmVjZWl2ZXJfaWQiOiJib2IubmVhciIsImFtb3VudCI6IjEwMDAwMDAifQDgV+tIGwAAAQAAAAAAAAAAAAAAAAAAAAD02VnloHDUTq2qtwGX3G/kqexL9MYmYMbnuyacf+AHXrwOmEJq9uiiekxRq3lVtChHU49xKtLgt1CuCJy4RSsC"
+    }
+  ],
+  "nep413": [
+    {
+      "message": "Login to example.app",
+      "recipient": "example.app",
+      "callbackUrl": null,
+      "nonceHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "publicKey": "ed25519:6j4b6zUaty6fD1awqcGCCU9JYGCWYUgdJhQrzfZhqE25",
+      "signatureBase64": "GJjvHyWUg3Ks/hO4zOSroJPDUu0GHIRgETkhCUYWjPx5LRVi0O0gWRdPM8ZCDr0N+9a5y7QNVGJA5mSz91WqAA=="
+    },
+    {
+      "message": "Login to example.app",
+      "recipient": "example.app",
+      "callbackUrl": "https://example.app/callback",
+      "nonceHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "publicKey": "ed25519:6j4b6zUaty6fD1awqcGCCU9JYGCWYUgdJhQrzfZhqE25",
+      "signatureBase64": "dicn1U9wUCg9tfebgfugkZ2KZ98vo/nJ4f7NQWZnmcg1Kf9lYMZgAhthLpF3WqiA1m6A7JiHDzxZUfHKx/kKCg=="
+    },
+    {
+      "message": "Sign in ✓",
+      "recipient": "app.near",
+      "callbackUrl": "https://example.app/callback",
+      "nonceHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "publicKey": "ed25519:6j4b6zUaty6fD1awqcGCCU9JYGCWYUgdJhQrzfZhqE25",
+      "signatureBase64": "QO5e1cIjyRv61O67ljU3SjGQgX/mq61RkiZcyfvJbgFCT568JYOPVQ4g5LdwnEDuIx3I/wVlmkruQifYx5CvAA=="
+    }
+  ]
+}
