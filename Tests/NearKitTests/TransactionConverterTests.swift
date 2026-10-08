@@ -66,12 +66,14 @@ final class TransactionConverterTests: XCTestCase {
 
         XCTAssertEqual(tx.status, .success)
         XCTAssertEqual(tx.ftTransfers, [FtTransfer(contractId: Self.usdt, from: Self.ftSender, to: Self.ftReceiver, amount: 5_000_000_000, memo: nil)])
-        // the 1 yocto proof deposit is a NEAR movement to the token contract
-        XCTAssertEqual(tx.nearTransfers, [NearTransfer(from: Self.ftSender, to: Self.usdt, amount: 1, kind: .functionCallDeposit, success: true)])
+        // the 1 yocto proof deposit is a NEAR movement to the token contract, but no NEAR payment
+        XCTAssertEqual(tx.nearTransfers, [NearTransfer(from: Self.ftSender, to: Self.usdt, amount: 1, kind: .functionCallDeposit, success: true, methodName: "ft_transfer")])
+        XCTAssertEqual(tx.nearMoved(accountId: Self.ftSender), 0)
         XCTAssertEqual(tx.fee, BigUInt("31368617837000000000") + BigUInt("208972821341200000000"))
         XCTAssertEqual(tx.actions.map(\.methodName), ["ft_transfer"])
         XCTAssertTrue(try XCTUnwrap(tx.actions.first?.args).contains(Self.ftReceiver))
-        XCTAssertEqual(tags, [TransactionTag.tokenNative, Self.usdt])
+        // a token send stays out of NEAR's history (Android `TransactionConverter.tags`)
+        XCTAssertEqual(tags, [Self.usdt])
     }
 
     func testIncomingTokenTransferIsTaggedWithTheTokenOnly() throws {
@@ -119,7 +121,9 @@ final class TransactionConverterTests: XCTestCase {
         XCTAssertEqual(tx.ftTransfers, [FtTransfer(contractId: Self.usdt, from: Self.ftSender, to: "bob.near", amount: 7, memo: "hi")])
         XCTAssertEqual(tx.nearNetChange(accountId: Self.ftSender), -BigInt("1250000000000000000001"))
         XCTAssertEqual(tx.expiresAfterHeight, 100)
-        XCTAssertEqual(tags, [TransactionTag.tokenNative, Self.usdt])
+        // the registration deposit and the 1 yocto proof belong to the token send
+        XCTAssertEqual(tx.nearMoved(accountId: Self.ftSender), 0)
+        XCTAssertEqual(tags, [Self.usdt])
     }
 
     func testLegacyTransferLogWithMemo() throws {
@@ -128,7 +132,7 @@ final class TransactionConverterTests: XCTestCase {
         let (tx, tags) = try TransactionConverter.convert(item: rpc, accountId: Self.testnetSender, fallbackTimestamp: 0)
 
         XCTAssertEqual(tx.ftTransfers, [FtTransfer(contractId: Self.wrap, from: Self.testnetSender, to: Self.testnetReceiver, amount: BigUInt("100000000000000000000000"), memo: "nearkit")])
-        XCTAssertEqual(tags, [TransactionTag.tokenNative, Self.wrap])
+        XCTAssertEqual(tags, [Self.wrap])
     }
 
     func testLegacyWrapDepositIsAMint() throws {

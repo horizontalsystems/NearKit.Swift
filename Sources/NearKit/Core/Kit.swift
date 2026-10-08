@@ -453,8 +453,9 @@ public extension Kit {
     /// it exists, because that is where funds sent to the key arrive.
     static func findAccounts(publicKey: PublicKey, network: Network, rpcUrls: [URL]? = nil, fastNearApiKey: String? = nil) async throws -> [String] {
         let networkManager = NetworkManager(timeout: requestTimeout)
-        let rpcApiProvider = try rpcApiProvider(urls: rpcUrls ?? network.rpcUrls, networkManager: networkManager)
-        let indexerProvider = FastNearProvider(network: network, apiKey: fastNearApiKey, networkManager: networkManager)
+        let auth = FastNearAuth(apiKey: fastNearApiKey)
+        let rpcApiProvider = try rpcApiProvider(urls: rpcUrls ?? network.rpcUrls, networkManager: networkManager, auth: auth)
+        let indexerProvider = FastNearProvider(network: network, auth: auth, networkManager: networkManager)
         return try await findAccounts(publicKey: publicKey, rpcApiProvider: rpcApiProvider, indexerProvider: indexerProvider)
     }
 
@@ -503,12 +504,12 @@ extension Kit {
         )
     }
 
-    private static func rpcApiProvider(urls: [URL], networkManager: NetworkManager) throws -> RpcApiProvider {
+    private static func rpcApiProvider(urls: [URL], networkManager: NetworkManager, auth: FastNearAuth? = nil) throws -> RpcApiProvider {
         // the provider traps on an empty list; here it is the caller's input, so it is an error instead
         guard !urls.isEmpty else {
             throw NoEndpointAvailable(underlying: nil)
         }
-        return RpcApiProvider(urls: urls, networkManager: networkManager, logger: Logger(minLogLevel: .error))
+        return RpcApiProvider(urls: urls, networkManager: networkManager, auth: auth, logger: Logger(minLogLevel: .error))
     }
 }
 
@@ -516,7 +517,7 @@ extension Kit {
 
 public extension Kit {
     /// A kit for `accountId`, implicit or named. `rpcUrls` are tried in order (the selected node first),
-    /// `fastNearApiKey` goes to the FastNEAR index only.
+    /// `fastNearApiKey` goes to FastNEAR hosts only: the index and FastNEAR's own RPC nodes.
     static func instance(accountId: String, network: Network, rpcUrls: [URL], fastNearApiKey: String? = nil, walletId: String, minLogLevel: Logger.Level = .error) throws -> Kit {
         try AccountId.validate(accountId)
         let logger = Logger(minLogLevel: minLogLevel)
@@ -525,8 +526,9 @@ public extension Kit {
         // call fails, and for `send_tx` that body is the signed transaction. The providers log
         // failures themselves, with the method and the host but no parameters.
         let networkManager = NetworkManager(timeout: requestTimeout)
-        let rpcApiProvider = try rpcApiProvider(urls: rpcUrls, networkManager: networkManager)
-        let indexerProvider = FastNearProvider(network: network, apiKey: fastNearApiKey, networkManager: networkManager)
+        let auth = FastNearAuth(apiKey: fastNearApiKey, logger: logger)
+        let rpcApiProvider = try rpcApiProvider(urls: rpcUrls, networkManager: networkManager, auth: auth)
+        let indexerProvider = FastNearProvider(network: network, auth: auth, networkManager: networkManager)
         let dbPool = try KitDatabase.pool(network: network, walletId: walletId)
 
         return try instance(

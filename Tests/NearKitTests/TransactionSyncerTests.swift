@@ -199,7 +199,7 @@ final class TransactionSyncerTests: XCTestCase {
         near.indexer.answer("/v0/transactions", .json(["transactions": [item(hash: "a", height: 1000), item(hash: "b", height: 1005)]]))
         try await sync()
 
-        XCTAssertEqual(accountRequests().last?["from_tx_block_height"] as? Int, 1000 - TransactionSyncer.overlapBlocks)
+        XCTAssertEqual(accountRequests().last?["from_tx_block_height"] as? Int, 1000 - TransactionSyncer.reindexWindowBlocks)
         XCTAssertEqual(accountRequests().last?["desc"] as? Bool, false)
         XCTAssertEqual(try near.mainStorage.transactionSyncState()?.lastSyncedBlockHeight, 1005)
 
@@ -208,7 +208,7 @@ final class TransactionSyncerTests: XCTestCase {
         near.indexer.answer("/v0/transactions", .json(["transactions": [item(hash: "c", height: 1003)]]))
         try await sync()
 
-        XCTAssertEqual(accountRequests().last?["from_tx_block_height"] as? Int, 1005 - TransactionSyncer.overlapBlocks)
+        XCTAssertEqual(accountRequests().last?["from_tx_block_height"] as? Int, 1005 - TransactionSyncer.reindexWindowBlocks)
         XCTAssertEqual(near.indexer.requests("/v0/transactions").last?.body?["tx_hashes"] as? [String], ["c"])
         XCTAssertNotNil(try stored("c"))
         XCTAssertEqual(try near.mainStorage.transactionSyncState()?.lastSyncedBlockHeight, 1005)
@@ -223,14 +223,11 @@ final class TransactionSyncerTests: XCTestCase {
         XCTAssertEqual(accountRequests().last?["from_tx_block_height"] as? Int, 0)
     }
 
-    // A first sync that fails is reported by the history state itself; later failures are the account syncer's to report.
+    // A failed sync is reported by the history state and never thrown: history is optional to the kit.
     func testFailedInitialSyncIsNotSynced() async throws {
         near.indexer.answer("/v0/account", .failure(URLError(.timedOut)))
 
-        do {
-            try await sync()
-            XCTFail("no error")
-        } catch {}
+        try await sync()
 
         XCTAssertTrue(syncer.syncState.notSynced)
     }

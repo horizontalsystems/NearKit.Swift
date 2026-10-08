@@ -201,12 +201,17 @@ final class RpcApiProviderTests: XCTestCase {
 
     // MARK: - Transient errors
 
-    // Only transport failures are transient (Android IOException); HTTP errors such as 429 are reported at once.
-    func testOnlyTransportFailuresAreTransient() {
+    // Transport failures, rate limits and 5xx are transient (Android `NetworkErrors.isTransient`); other HTTP errors are reported at once.
+    func testTransportFailuresRateLimitsAndServerErrorsAreTransient() {
         XCTAssertTrue(NetworkErrors.isTransient(NoEndpointAvailable(underlying: URLError(.timedOut))))
         XCTAssertTrue(NetworkErrors.isTransient(AFError.sessionTaskFailed(error: URLError(.networkConnectionLost))))
-        XCTAssertFalse(NetworkErrors.isTransient(NoEndpointAvailable(underlying: http(429))))
-        XCTAssertFalse(NetworkErrors.isTransient(NoEndpointAvailable(underlying: http(503))))
+        XCTAssertTrue(NetworkErrors.isTransient(NoEndpointAvailable(underlying: http(429))))
+        XCTAssertTrue(NetworkErrors.isTransient(NoEndpointAvailable(underlying: http(503))))
+        XCTAssertFalse(NetworkErrors.isTransient(NoEndpointAvailable(underlying: http(401))))
+        XCTAssertFalse(NetworkErrors.isTransient(NoEndpointAvailable(underlying: http(404))))
+        XCTAssertTrue(NetworkErrors.isRateLimited(NoEndpointAvailable(underlying: http(429))))
+        XCTAssertTrue(NetworkErrors.isRateLimited(http(429)))
+        XCTAssertFalse(NetworkErrors.isRateLimited(http(503)))
         XCTAssertTrue(NetworkErrors.isTransient(NoEndpointAvailable(underlying: AFError.sessionTaskFailed(error: URLError(.cannotFindHost)))))
         XCTAssertFalse(NetworkErrors.isTransient(NoEndpointAvailable(underlying: RpcError(name: "TIMEOUT_ERROR", data: nil, message: nil))))
         XCTAssertFalse(NetworkErrors.isTransient(InvalidResponse("x")))

@@ -7,8 +7,10 @@ import HsToolKit
 /// Drives one sync cycle per timer tick: latest block, account state, token balances, then
 /// transaction history (Android `Syncer`). The single writer to the main tables.
 ///
-/// A failure in any step makes both the account and the history not synced, as in Android; only a
-/// failed token list from the index keeps the previous list. Unlike Android, token balances are
+/// `syncState` covers the balances: a failure of the block, account or token step makes both the
+/// account and the history not synced, as in Android; a failed token list from the index keeps the
+/// previous list. History runs last and reports its own failures, so an index outage leaves
+/// balances synced. Unlike Android, token balances are
 /// synced whether or not the account exists: a token can be sent to an implicit account that never
 /// received NEAR, and NEP-141 keeps the balance anyway.
 final class SyncManager {
@@ -150,11 +152,12 @@ final class SyncManager {
 
             try await syncFtBalances()
 
-            try await transactionSyncer.sync(blockHeight: block.height)
-
             hasSyncedOnce = true
             consecutiveFailures = 0
             syncState = .synced
+
+            // reports its own failures, so an index outage or rate limit leaves balances synced
+            try await transactionSyncer.sync(blockHeight: block.height)
         } catch is CancellationError {
             return
         } catch {

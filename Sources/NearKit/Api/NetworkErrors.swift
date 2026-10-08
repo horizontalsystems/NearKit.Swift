@@ -1,15 +1,16 @@
 import Alamofire
 import Foundation
+import HsToolKit
 
 enum NetworkErrors {
-    /// True for failures that come from the device's connectivity rather than from the chain or
-    /// the kit: DNS not ready after the app resumes, a dropped socket, a timeout. These clear
-    /// themselves within seconds and are not worth showing as a sync error right away.
+    /// True for failures that come from the device's connectivity or a briefly overloaded service
+    /// rather than from the chain or the kit: DNS not ready after the app resumes, a dropped socket,
+    /// a timeout, a rate limit or a 5xx. These clear themselves and are not worth showing as a sync
+    /// error right away (Android `NetworkErrors.isTransient`).
     ///
-    /// Only transport failures count, as Android's `IOException`: an HTTP error status (429, 401,
-    /// 503) is reported at once. HsToolKit `NetworkManager` throws those as its own `ResponseError`,
-    /// which is neither `URLError` nor `AFError`, so it is not transient; transport failures arrive
-    /// as `AFError.sessionTaskFailed` wrapping a `URLError`.
+    /// Transport failures arrive as `AFError.sessionTaskFailed` wrapping a `URLError`; HTTP error
+    /// statuses as HsToolKit's `NetworkManager.ResponseError`. Other statuses (401, 404) are
+    /// reported at once.
     static func isTransient(_ error: Error) -> Bool {
         let cause = (error as? NoEndpointAvailable)?.underlying ?? error
 
@@ -24,7 +25,20 @@ enum NetworkErrors {
                 return afError.underlyingError is URLError
             }
         }
+        if let statusCode = statusCode(cause) {
+            return statusCode == 429 || (500 ..< 600).contains(statusCode)
+        }
         return false
+    }
+
+    /// HTTP 429. HsToolKit's `ResponseError` keeps no headers, so unlike Android a `Retry-After`
+    /// is not available and the caller backs off on its own schedule.
+    static func isRateLimited(_ error: Error) -> Bool {
+        statusCode((error as? NoEndpointAvailable)?.underlying ?? error) == 429
+    }
+
+    static func statusCode(_ error: Error) -> Int? {
+        (error as? NetworkManager.ResponseError)?.statusCode
     }
 
     /// DNS failure: the network is usually just not up yet.

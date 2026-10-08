@@ -39,7 +39,9 @@ enum TransactionConverter {
         }
 
         let txOutcome = txOutcomeWrapper?.object("outcome")
-        let (status, failure) = finalStatus(txOutcome: txOutcome, receipts: receiptsById)
+        let (status, failure): (Transaction.Status, String?) = item["execution_outcome"] != nil && hasUnexecutedReceipts(txOutcome: txOutcome, receipts: receipts)
+            ? (.pending, nil)
+            : finalStatus(txOutcome: txOutcome, receipts: receiptsById)
 
         let outcomes = [txOutcome].compactMap { $0 } + receipts.compactMap(\.outcome)
         let burnt = outcomes.compactMap { $0.lenientBigUInt("tokens_burnt") }.reduce(BigUInt(0), +)
@@ -76,7 +78,7 @@ enum TransactionConverter {
                 nearTransfers.append(NearTransfer(from: tx.signerId, to: tx.receiverId, amount: deposit, kind: .transfer, success: true))
             case let .functionCall(methodName, args, _, deposit):
                 if deposit > 0 {
-                    nearTransfers.append(NearTransfer(from: tx.signerId, to: tx.receiverId, amount: deposit, kind: .functionCallDeposit, success: true))
+                    nearTransfers.append(NearTransfer(from: tx.signerId, to: tx.receiverId, amount: deposit, kind: .functionCallDeposit, success: true, methodName: methodName))
                 }
                 if methodName == "ft_transfer" || methodName == "ft_transfer_call", let args = RpcJson.object(text: String(decoding: args, as: UTF8.self)),
                    let to = args.lenientString("receiver_id"), let amount = args.lenientBigUInt("amount")
@@ -105,18 +107,24 @@ enum TransactionConverter {
         return (transaction, tags(transaction: transaction, accountId: tx.signerId))
     }
 
+    /// The histories `transaction` appears in, as other chains do it: a token's history holds its
+    /// transfers, and NEAR's history holds transactions that move NEAR (`Transaction.nearMoved`).
+    /// Gas alone does not count, or every token send would show in NEAR's history too, and neither
+    /// does NEAR that failed to move or came back. A signed transaction that touches no token, such
+    /// as adding a key, stays in NEAR's history.
     static func tags(transaction: Transaction, accountId: String) -> Set<String> {
         var tags = Set<String>()
-        let movesNear = transaction.nearTransfers.contains { ($0.from == accountId || $0.to == accountId) && $0.amount > 0 }
-        // a transaction the account signed always costs it NEAR in gas
-        if movesNear || transaction.signerId == accountId {
+        let signed = transaction.signerId == accountId
+        let callsToken = signed && transaction.actions.contains { Transaction.isFtMethod($0.methodName) }
+        let movesNear = transaction.nearMoved(accountId: accountId) != 0
+        if movesNear || (signed && !callsToken && transaction.ftTransfers.isEmpty) {
             tags.insert(TransactionTag.tokenNative)
         }
         for transfer in transaction.ftTransfers {
             tags.insert(transfer.contractId)
         }
         // a failed token send emits no event; keep it in that token's history anyway
-        if transaction.signerId == accountId, transaction.actions.contains(where: { $0.methodName?.hasPrefix("ft_") == true }) {
+        if callsToken {
             tags.insert(transaction.receiverId)
         }
         return tags
@@ -199,6 +207,21 @@ enum TransactionConverter {
         return (.pending, nil)
     }
 
+    /// FastNEAR serves a transaction from its first block on, while receipts are still executing,
+    /// and its final status can already be settled then: a receipt that returns a value may have
+    /// spawned others (a swap output, wrap.near's NEAR payout) that run in later blocks. Until every
+    /// receipt an outcome created is present, the transfers are incomplete.
+    ///
+    /// Only for FastNEAR items: RPC results at EXECUTED_OPTIMISTIC may leave out gas refund receipts
+    /// that never matter here, and would never look complete.
+    private static func hasUnexecutedReceipts(txOutcome: RpcJson?, receipts: [Receipt]) -> Bool {
+        let present = Set(receipts.map(\.id))
+        let outcomes = [txOutcome].compactMap { $0 } + receipts.compactMap(\.outcome)
+        return outcomes
+            .flatMap { ($0.array("receipt_ids") ?? []).compactMap { $0 as? String } }
+            .contains { !present.contains($0) }
+    }
+
     private static func isSuccess(_ outcome: RpcJson) -> Bool {
         guard let status = outcome.object("status") else {
             return false
@@ -223,8 +246,8 @@ enum TransactionConverter {
             if let deposit = action.object("Transfer")?.lenientBigUInt("deposit") {
                 return NearTransfer(from: from, to: to, amount: deposit, kind: .transfer, success: success)
             }
-            if let deposit = action.object("FunctionCall")?.lenientBigUInt("deposit"), deposit > 0 {
-                return NearTransfer(from: from, to: to, amount: deposit, kind: .functionCallDeposit, success: success)
+            if let call = action.object("FunctionCall"), let deposit = call.lenientBigUInt("deposit"), deposit > 0 {
+                return NearTransfer(from: from, to: to, amount: deposit, kind: .functionCallDeposit, success: success, methodName: call.lenientString("method_name"))
             }
             return nil
         }

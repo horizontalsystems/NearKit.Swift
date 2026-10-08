@@ -78,6 +78,49 @@ public class Transaction: Record {
         }
     }
 
+    /// The NEAR `accountId` gained or lost as a payment: `nearNetChange` without the NEAR that only
+    /// accompanies a call. That is the 1 yoctoNEAR contracts demand as proof of a full-access key
+    /// (NEP-141 `ft_*`, NEP-245, intents), the storage deposit that registers a receiver next to a
+    /// token transfer, and the part of that deposit the contract sends back. It decides whether a
+    /// transaction belongs to NEAR's history (Android `Transaction.nearMoved`).
+    public func nearMoved(accountId: String) -> BigInt {
+        let sendsToken = signerId == accountId && actions.contains { Self.isFtMethod($0.methodName) }
+        func accompanying(_ transfer: NearTransfer) -> Bool {
+            transfer.kind == .functionCallDeposit && transfer.from == accountId &&
+                (transfer.amount == 1 || Self.isFtMethod(transfer.methodName) || (sendsToken && transfer.methodName == Self.storageDeposit))
+        }
+
+        let successful = nearTransfers.filter(\.success)
+        // what each contract may still send back of the registration deposits it got
+        var refundable = [String: BigUInt]()
+        for transfer in successful where accompanying(transfer) && transfer.methodName == Self.storageDeposit {
+            refundable[transfer.to, default: 0] += transfer.amount
+        }
+
+        return successful.reduce(BigInt(0)) { result, transfer in
+            if accompanying(transfer) {
+                return result
+            }
+            if transfer.to == accountId, transfer.kind == .transfer, let available = refundable[transfer.from], available >= transfer.amount {
+                refundable[transfer.from] = available - transfer.amount
+                return result
+            }
+            if transfer.to == accountId {
+                return transfer.from == accountId ? result : result + BigInt(transfer.amount)
+            }
+            if transfer.from == accountId {
+                return result - BigInt(transfer.amount)
+            }
+            return result
+        }
+    }
+
+    private static let storageDeposit = "storage_deposit"
+
+    static func isFtMethod(_ methodName: String?) -> Bool {
+        methodName?.hasPrefix("ft_") == true
+    }
+
     func copy(timestamp: Int? = nil, status: Status? = nil, failure: String?? = nil) -> Transaction {
         Transaction(
             hash: hash, blockHeight: blockHeight, timestamp: timestamp ?? self.timestamp, signerId: signerId, receiverId: receiverId,
@@ -220,17 +263,20 @@ public struct NearTransfer: Equatable, Codable {
     public let kind: Kind
     /// False when the receipt failed; its deposit went back to the sender.
     public let success: Bool
+    /// The method a `functionCallDeposit` was attached to.
+    public let methodName: String?
 
-    init(from: String, to: String, amount: BigUInt, kind: Kind, success: Bool) {
+    init(from: String, to: String, amount: BigUInt, kind: Kind, success: Bool, methodName: String? = nil) {
         self.from = from
         self.to = to
         self.amount = amount
         self.kind = kind
         self.success = success
+        self.methodName = methodName
     }
 
     enum CodingKeys: String, CodingKey {
-        case from, to, amount, kind, success
+        case from, to, amount, kind, success, methodName
     }
 
     public init(from decoder: Decoder) throws {
@@ -240,6 +286,7 @@ public struct NearTransfer: Equatable, Codable {
         amount = try container.decodeAmount(forKey: .amount)
         kind = try container.decode(Kind.self, forKey: .kind)
         success = try container.decode(Bool.self, forKey: .success)
+        methodName = try container.decodeIfPresent(String.self, forKey: .methodName)
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -249,6 +296,7 @@ public struct NearTransfer: Equatable, Codable {
         try container.encode(amount.description, forKey: .amount)
         try container.encode(kind, forKey: .kind)
         try container.encode(success, forKey: .success)
+        try container.encodeIfPresent(methodName, forKey: .methodName)
     }
 }
 

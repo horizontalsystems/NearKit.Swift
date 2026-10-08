@@ -70,16 +70,17 @@ final class SyncManagerTests: XCTestCase {
         XCTAssertEqual(try near.mainStorage.ftBalances().map(\.contractId), [Self.usdt])
     }
 
-    // Any failed step makes both the account and the history not synced (Android Syncer).
-    func testAnyStepFailureIsNotSyncedForBothStates() async throws {
+    // A failed balance step makes both the account and the history not synced (Android Syncer);
+    // a failed history step only the history: balances stay synced.
+    func testStepFailuresAreReportedByTheirOwnState() async throws {
         let down = StubRpcTransport.Answer.error(cause: "INTERNAL_ERROR")
-        let cases: [(String, (SyncManagerTests) -> Void)] = [
-            ("block", { $0.queueCycle(block: [down, down], account: [], tokens: nil, history: nil) }),
-            ("view_account", { $0.queueCycle(account: [down, down], tokens: nil, history: nil) }),
-            ("history", { $0.queueCycle(history: .failure(InvalidResponse("down"))) }),
+        let cases: [(String, Bool, (SyncManagerTests) -> Void)] = [
+            ("block", true, { $0.queueCycle(block: [down, down], account: [], tokens: nil, history: nil) }),
+            ("view_account", true, { $0.queueCycle(account: [down, down], tokens: nil, history: nil) }),
+            ("history", false, { $0.queueCycle(history: .failure(InvalidResponse("down"))) }),
         ]
 
-        for (step, queue) in cases {
+        for (step, balancesFail, queue) in cases {
             try setUpWithError()
             // the first history sync is done, so the failure is the account syncer's to report
             try near.mainStorage.save(transactionSyncState: TransactionSyncState(lastSyncedBlockHeight: 900, initialSyncDone: true, backfillResumeToken: nil))
@@ -87,7 +88,7 @@ final class SyncManagerTests: XCTestCase {
 
             await syncManager.syncNow()
 
-            XCTAssertTrue(syncManager.syncState.notSynced, step)
+            XCTAssertEqual(syncManager.syncState.notSynced, balancesFail, step)
             XCTAssertTrue(transactionSyncer.syncState.notSynced, step)
             near.assertNoUnexpectedRequests()
         }
@@ -151,12 +152,12 @@ final class SyncManagerTests: XCTestCase {
         XCTAssertTrue(transactionSyncer.syncState.notSynced)
     }
 
-    // HTTP errors (429, 401, 503) are not transient: reported at once, as Android.
-    func testHttpErrorIsReportedAtOnce() async throws {
+    // Client HTTP errors such as 401 are reported at once; 429 and 5xx are transient (Android `NetworkErrors`).
+    func testClientHttpErrorIsReportedAtOnce() async throws {
         queueCycle()
         await syncManager.syncNow()
 
-        queueCycle(block: [Self.http(429), Self.http(429)], account: [], tokens: nil, history: nil)
+        queueCycle(block: [Self.http(401), Self.http(401)], account: [], tokens: nil, history: nil)
         await syncManager.syncNow()
 
         XCTAssertTrue(syncManager.syncState.notSynced)

@@ -10,13 +10,28 @@ protocol IRpcTransport {
 
 final class NetworkManagerRpcTransport: IRpcTransport {
     private let networkManager: NetworkManager
+    private let auth: FastNearAuth?
 
-    init(networkManager: NetworkManager) {
+    init(networkManager: NetworkManager, auth: FastNearAuth? = nil) {
         self.networkManager = networkManager
+        self.auth = auth
     }
 
+    // FastNEAR's own RPC nodes take the API key; other providers in the list never see it
     func post(url: URL, body: RpcJson, timeout: TimeInterval?) async throws -> Any {
-        try await networkManager.fetchJson(url: url, method: .post, parameters: body, encoding: JSONEncoding.default, responseCacherBehavior: .doNotCache, timeout: timeout)
+        guard let auth else {
+            return try await post(url: url, body: body, timeout: timeout, headers: [:])
+        }
+        return try await auth.perform(headers: auth.headers(url: url)) { headers in
+            try await post(url: url, body: body, timeout: timeout, headers: headers)
+        }
+    }
+
+    private func post(url: URL, body: RpcJson, timeout: TimeInterval?, headers: [String: String]) async throws -> Any {
+        try await networkManager.fetchJson(
+            url: url, method: .post, parameters: body, encoding: JSONEncoding.default, headers: headers.isEmpty ? nil : HTTPHeaders(headers),
+            responseCacherBehavior: .doNotCache, timeout: timeout
+        )
     }
 }
 
@@ -45,8 +60,8 @@ final class RpcApiProvider {
         self.logger = logger
     }
 
-    convenience init(urls: [URL], networkManager: NetworkManager, logger: Logger? = nil) {
-        self.init(urls: urls, transport: NetworkManagerRpcTransport(networkManager: networkManager), logger: logger)
+    convenience init(urls: [URL], networkManager: NetworkManager, auth: FastNearAuth? = nil, logger: Logger? = nil) {
+        self.init(urls: urls, transport: NetworkManagerRpcTransport(networkManager: networkManager, auth: auth), logger: logger)
     }
 
     var urls: [URL] {

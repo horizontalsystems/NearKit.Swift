@@ -29,7 +29,7 @@ final class NetworkManagerIndexerTransport: IIndexerTransport {
 /// no token list: https://docs.fastnear.com. Results are indexer data, not consensus state, so the
 /// kit uses them for discovery and history and reads balances that move money from the RPC.
 ///
-/// The optional API key goes as `Authorization: Bearer` to these hosts only, never to an RPC node.
+/// The optional API key goes as `Authorization: Bearer` (`FastNearAuth`), and is dropped when FastNEAR rejects it.
 /// Nothing here is logged: the URLs carry the account id or the public key.
 final class FastNearProvider {
     static let pageLimit = 200
@@ -38,28 +38,40 @@ final class FastNearProvider {
     private let apiUrl: URL
     private let txApiUrl: URL
     private let transport: IIndexerTransport
-    private let headers: [String: String]
+    private let auth: FastNearAuth
 
-    init(apiUrl: URL, txApiUrl: URL, apiKey: String?, transport: IIndexerTransport) {
+    init(apiUrl: URL, txApiUrl: URL, auth: FastNearAuth, transport: IIndexerTransport) {
         self.apiUrl = apiUrl
         self.txApiUrl = txApiUrl
+        self.auth = auth
         self.transport = transport
+    }
 
-        if let apiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty {
-            headers = ["Authorization": "Bearer \(apiKey)"]
-        } else {
-            headers = [:]
-        }
+    convenience init(apiUrl: URL, txApiUrl: URL, apiKey: String?, transport: IIndexerTransport) {
+        self.init(apiUrl: apiUrl, txApiUrl: txApiUrl, auth: FastNearAuth(apiKey: apiKey), transport: transport)
+    }
+
+    convenience init(network: Network, auth: FastNearAuth, networkManager: NetworkManager) {
+        self.init(apiUrl: network.apiUrl, txApiUrl: network.txApiUrl, auth: auth, transport: NetworkManagerIndexerTransport(networkManager: networkManager))
     }
 
     convenience init(network: Network, apiKey: String?, networkManager: NetworkManager) {
-        self.init(apiUrl: network.apiUrl, txApiUrl: network.txApiUrl, apiKey: apiKey, transport: NetworkManagerIndexerTransport(networkManager: networkManager))
+        self.init(network: network, auth: FastNearAuth(apiKey: apiKey), networkManager: networkManager)
+    }
+
+    // every index URL is a FastNEAR service, so the key goes with each request
+    private func get(url: URL) async throws -> Any {
+        try await auth.perform(headers: auth.headers) { [transport] headers in try await transport.get(url: url, headers: headers) }
+    }
+
+    private func post(url: URL, body: RpcJson) async throws -> Any {
+        try await auth.perform(headers: auth.headers) { [transport] headers in try await transport.post(url: url, body: body, headers: headers) }
     }
 }
 
 extension FastNearProvider: IIndexerProvider {
     func ftBalances(accountId: String) async throws -> [FtBalanceInfo] {
-        let json = try await transport.get(url: apiUrl.appendingPathComponent("v1/account/\(accountId)/ft"), headers: headers)
+        let json = try await get(url: apiUrl.appendingPathComponent("v1/account/\(accountId)/ft"))
         guard let tokens = (json as? RpcJson)?.array("tokens") else {
             throw InvalidResponse("ft: missing tokens")
         }
@@ -75,7 +87,7 @@ extension FastNearProvider: IIndexerProvider {
     }
 
     func accountIds(publicKey: String) async throws -> [String] {
-        let json = try await transport.get(url: apiUrl.appendingPathComponent("v0/public_key/\(publicKey)"), headers: headers)
+        let json = try await get(url: apiUrl.appendingPathComponent("v0/public_key/\(publicKey)"))
         guard let ids = (json as? RpcJson)?.array("account_ids") else {
             throw InvalidResponse("public_key: missing account_ids")
         }
@@ -91,7 +103,7 @@ extension FastNearProvider: IIndexerProvider {
             body["resume_token"] = resumeToken
         }
 
-        let json = try await transport.post(url: txApiUrl.appendingPathComponent("v0/account"), body: body, headers: headers)
+        let json = try await post(url: txApiUrl.appendingPathComponent("v0/account"), body: body)
         guard let result = json as? RpcJson, let rows = result.array("account_txs") else {
             throw InvalidResponse("account: missing account_txs")
         }
@@ -114,7 +126,7 @@ extension FastNearProvider: IIndexerProvider {
         guard !hashes.isEmpty else {
             return []
         }
-        let json = try await transport.post(url: txApiUrl.appendingPathComponent("v0/transactions"), body: ["tx_hashes": hashes], headers: headers)
+        let json = try await post(url: txApiUrl.appendingPathComponent("v0/transactions"), body: ["tx_hashes": hashes])
         guard let list = (json as? RpcJson)?.array("transactions") else {
             throw InvalidResponse("transactions: missing transactions")
         }

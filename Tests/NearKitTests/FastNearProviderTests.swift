@@ -1,4 +1,5 @@
 import BigInt
+@testable import HsToolKit
 @testable import NearKit
 import XCTest
 
@@ -137,5 +138,36 @@ final class FastNearProviderTests: XCTestCase {
 
             XCTAssertEqual(transport.requests.first?.headers, [:])
         }
+    }
+
+    // A revoked key is dropped for good and the request repeated without it (Android `FastNearAuth`).
+    func testRejectedKeyIsDroppedAndTheRequestRepeatedWithoutIt() async throws {
+        provider = .stub(transport, apiKey: "secret")
+        let rejected = NetworkManager.ResponseError(statusCode: 403, json: nil, rawData: nil)
+        transport.answer("/v1/account/bob.near/ft", .failure(rejected), .json(["tokens": []]), .json(["tokens": []]))
+
+        _ = try await provider.ftBalances(accountId: "bob.near")
+        _ = try await provider.ftBalances(accountId: "bob.near")
+
+        XCTAssertEqual(transport.requests.map { $0.headers["Authorization"] }, ["Bearer secret", nil, nil])
+    }
+
+    // Other failures keep the key.
+    func testOtherErrorsKeepTheKey() async throws {
+        provider = .stub(transport, apiKey: "secret")
+        transport.answer("/v1/account/bob.near/ft", .failure(NetworkManager.ResponseError(statusCode: 429, json: nil, rawData: nil)), .json(["tokens": []]))
+
+        _ = try? await provider.ftBalances(accountId: "bob.near")
+        _ = try await provider.ftBalances(accountId: "bob.near")
+
+        XCTAssertEqual(transport.requests.map { $0.headers["Authorization"] }, ["Bearer secret", "Bearer secret"])
+    }
+
+    // The RPC transport sends the key to FastNEAR's own nodes only, never to another provider in the list.
+    func testKeyGoesToFastNearHostsOnly() {
+        let auth = FastNearAuth(apiKey: "secret")
+        let hosts = ["https://free.rpc.fastnear.com/", "https://tx.main.fastnear.com/v0/account", "https://near.drpc.org/", "https://fastnear.com.evil.example/"]
+
+        XCTAssertEqual(hosts.map { auth.headers(url: URL(string: $0)!)["Authorization"] }, ["Bearer secret", "Bearer secret", nil, nil])
     }
 }
