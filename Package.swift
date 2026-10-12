@@ -18,7 +18,7 @@ let package = Package(
         .package(url: "https://github.com/horizontalsystems/HdWalletKit.Swift.git", exact: "1.3.2"),
         .package(url: "https://github.com/horizontalsystems/HsCryptoKit.Swift.git", exact: "1.3.2"),
         .package(url: "https://github.com/horizontalsystems/HsExtensions.Swift.git", exact: "1.0.6"),
-        .package(path: "../HsToolKit.Swift"),
+        .package(url: "https://github.com/horizontalsystems/HsToolKit.Swift.git", exact: "2.0.7"),
     ],
     targets: [
         .target(
