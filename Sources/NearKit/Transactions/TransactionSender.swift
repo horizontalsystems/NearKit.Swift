@@ -87,7 +87,9 @@ final class TransactionSender {
         let (pending, tags) = TransactionConverter.pending(
             transaction: signed.transaction,
             hash: signed.hash,
-            expiresAfterHeight: height + Self.transactionValidityBlocks,
+            // wraps instead of trapping on an absurd height from a node, as Android's Long does: the
+            // record then shows as expired rather than every send crashing the app
+            expiresAfterHeight: height &+ Self.transactionValidityBlocks,
             timestamp: Int(Date().timeIntervalSince1970)
         )
         let savePending = { [self] in

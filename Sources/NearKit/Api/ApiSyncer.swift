@@ -81,7 +81,8 @@ final class ApiSyncer {
     private func startTimer() {
         // invalidate and create in the same main-queue block, otherwise queued calls create zombie timers
         DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
+            // a stop, a pause or a lost connection may have come in while this block was queued
+            guard let self, isStarted, !isPaused, state == .ready else { return }
             stopTimer()
             timer = Timer.scheduledTimer(withTimeInterval: syncInterval, repeats: true) { [weak self] _ in
                 self?.delegate?.sync()
@@ -92,12 +93,7 @@ final class ApiSyncer {
     }
 
     /// A timer can only be invalidated from the run loop it was installed on, and `startTimer` always
-    /// installs it on main. Called from anywhere else the invalidation is dropped and the timer keeps
-    /// firing for the life of the app. Both callers that matter arrive off-main: `deinit`, on whichever
-    /// queue released the kit, and the reachability callback, which publishes on its own queue. So a
-    /// flapping connection used to leave one live timer behind per change - harmless work, since the
-    /// block holds `self` weakly, but a wake-up of the main thread every cycle forever.
-    /// EvmKit `ApiRpcSyncer` and TronKit `SyncTimer` share the gap; we do not, hence the hop.
+    /// installs it on main, while `deinit` and the reachability callback may arrive on other queues.
     private func stopTimer() {
         let timer = timer
         self.timer = nil

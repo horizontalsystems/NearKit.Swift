@@ -60,23 +60,6 @@ struct FeeCalculator {
     }
 }
 
-public struct FeeEstimate: Equatable {
-    public let gas: UInt64
-    /// yoctoNEAR the sender ends up paying: gas burnt at the current gas price plus the account
-    /// creation charge. For function calls it assumes all attached gas is used, unless the
-    /// estimate was given the gas a call is expected to use.
-    public let fee: BigUInt
-    /// yoctoNEAR (besides deposits) the account must hold for the node to accept the transaction.
-    /// Use it to compute the maximum sendable amount.
-    public let requiredBalance: BigUInt
-
-    public init(gas: UInt64, fee: BigUInt, requiredBalance: BigUInt) {
-        self.gas = gas
-        self.fee = fee
-        self.requiredBalance = requiredBalance
-    }
-}
-
 extension FeeCalculator {
     /// Gas of one item: burnt on conversion (`send`, at the not-sender-is-receiver price) and on execution.
     struct Cost: Equatable {
@@ -139,38 +122,16 @@ extension FeeCalculator {
                 functionCallPerByte: functionCallPerByte,
                 otherAction: Config.default.otherAction,
                 // older protocol versions have neither field: no charge, and gas bought at the block price
-                accountCreationCharge: lenientBigUInt(runtime["account_creation_charge"]) ?? 0,
-                minGasPurchasePrice: lenientBigUInt(runtime["min_gas_purchase_price"]) ?? 0
+                accountCreationCharge: runtime.lenientBigUInt("account_creation_charge") ?? 0,
+                minGasPurchasePrice: runtime.lenientBigUInt("min_gas_purchase_price") ?? 0
             )
         }
 
         private static func cost(_ json: RpcJson?) -> Cost? {
-            guard let json, let send = lenientUInt64(json["send_not_sir"]), let execution = lenientUInt64(json["execution"]) else {
+            guard let json, let send = json.lenientUInt64("send_not_sir"), let execution = json.lenientUInt64("execution") else {
                 return nil
             }
             return Cost(send: send, execution: execution)
-        }
-
-        // Read like the Android kit's Gson helpers: a number or a numeric string.
-
-        private static func lenientUInt64(_ raw: Any?) -> UInt64? {
-            if let number = raw as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() {
-                return UInt64(exactly: number)
-            }
-            return (raw as? String).flatMap { UInt64($0) }
-        }
-
-        private static func lenientBigUInt(_ raw: Any?) -> BigUInt? {
-            let string: String?
-            if let number = raw as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() {
-                string = number.stringValue
-            } else {
-                string = raw as? String
-            }
-            guard let string, !string.isEmpty, string.allSatisfy(\.isASCIIDigit) else {
-                return nil
-            }
-            return BigUInt(string)
         }
     }
 }

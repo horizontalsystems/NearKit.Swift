@@ -28,42 +28,33 @@ final class FeeCalculatorTests: XCTestCase {
 
     // iOS additions
 
-    // 8.349895375 Tgas at the 10^9 minimum purchase price plus the 0.007 NEAR charge = 0.015349895375 NEAR
-    func testWorstCaseTransferRequired() {
-        XCTAssertEqual(Kit.worstCaseTransferRequired, BigUInt("15349895375000000000000"))
-        // a block gas price below the purchase minimum does not move it
-        let atUsualPrice = FeeCalculator().estimate(actions: [.transfer(deposit: 1)], receiverIsImplicit: true, createsAccount: true, gasPrice: gasPrice)
-        XCTAssertEqual(atUsualPrice.requiredBalance, Kit.worstCaseTransferRequired)
+    // a live mainnet answer (protocol version 86): what the node reports is what the kit has built in
+    func testReadsLiveProtocolConfig() throws {
+        let live = try Fixtures.json("protocol-config-mainnet-p86")
+
+        XCTAssertEqual(FeeCalculator.Config.from(protocolConfig: live), FeeCalculator.Config.default)
     }
 
-    func testReadsProtocolConfig() throws {
-        func cost(_ send: UInt64, _ execution: UInt64) -> [String: Any] {
-            ["send_sir": 1, "send_not_sir": send, "execution": execution]
-        }
-        var runtime: [String: Any] = [
-            "account_creation_charge": "7000000000000000000000",
-            "min_gas_purchase_price": "1000000000",
-            "transaction_costs": [
-                "action_receipt_creation_config": cost(108_059_500_000, 108_059_500_000),
-                "action_creation_config": [
-                    "transfer_cost": cost(115_123_062_500, 115_123_062_500),
-                    "create_account_cost": cost(500_000_000_000, 7_200_000_000_000),
-                    "add_key_cost": ["full_access_cost": cost(101_765_125_000, 101_765_125_000)],
-                    "function_call_cost": cost(200_000_000_000, 780_000_000_000),
-                    "function_call_cost_per_byte": cost(47_683_715, 2_235_934),
-                ],
-            ],
-        ]
-        XCTAssertEqual(FeeCalculator.Config.from(protocolConfig: ["runtime_config": runtime]), FeeCalculator.Config.default)
-
+    func testOlderProtocolConfigHasNoChargeAndNoPurchaseMinimum() throws {
+        var config = try Fixtures.json("protocol-config-mainnet-p86")
+        var runtime = try XCTUnwrap(config["runtime_config"] as? [String: Any])
         runtime["account_creation_charge"] = nil
         runtime["min_gas_purchase_price"] = nil
-        let older = try XCTUnwrap(FeeCalculator.Config.from(protocolConfig: ["runtime_config": runtime]))
+        config["runtime_config"] = runtime
+
+        let older = try XCTUnwrap(FeeCalculator.Config.from(protocolConfig: config))
+
         XCTAssertEqual(older.accountCreationCharge, 0)
         XCTAssertEqual(older.minGasPurchasePrice, 0)
+    }
 
-        runtime["transaction_costs"] = ["action_creation_config": [:]]
-        XCTAssertNil(FeeCalculator.Config.from(protocolConfig: ["runtime_config": runtime]))
+    func testUnexpectedProtocolConfigShapeIsRefused() throws {
+        var config = try Fixtures.json("protocol-config-mainnet-p86")
+        var runtime = try XCTUnwrap(config["runtime_config"] as? [String: Any])
+        runtime["transaction_costs"] = ["action_creation_config": [String: Any]()]
+        config["runtime_config"] = runtime
+
+        XCTAssertNil(FeeCalculator.Config.from(protocolConfig: config))
         XCTAssertNil(FeeCalculator.Config.from(protocolConfig: [:]))
     }
 

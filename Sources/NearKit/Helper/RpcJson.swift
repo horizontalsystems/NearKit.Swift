@@ -18,10 +18,6 @@ extension [String: Any] {
         return value
     }
 
-    func bool(_ key: String) -> Bool {
-        self[key] as? Bool ?? false
-    }
-
     func object(_ key: String) -> RpcJson? {
         self[key] as? RpcJson
     }
@@ -35,13 +31,6 @@ extension [String: Any] {
 
     func array(_ key: String) -> [Any]? {
         self[key] as? [Any]
-    }
-
-    func requireArray(_ key: String) throws -> [Any] {
-        guard let value = array(key) else {
-            throw InvalidResponse("missing array '\(key)'")
-        }
-        return value
     }
 
     /// A JSON number field. JSON booleans are NSNumber too (and `0`/`1` even cast to `Bool`),

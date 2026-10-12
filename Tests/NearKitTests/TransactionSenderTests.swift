@@ -167,4 +167,14 @@ final class TransactionSenderTests: XCTestCase {
 
         XCTAssertEqual(transaction.expiresAfterHeight, 7000 + TransactionSender.transactionValidityBlocks)
     }
+
+    // a node reporting a height near Int.max must not crash every send
+    func testAbsurdHeightFromNodeDoesNotTrap() async throws {
+        near.rpc.answer("query.view_access_key", .result(FakeNear.accessKey(blockHeight: Int.max)))
+        near.rpc.answer("send_tx", included)
+
+        let transaction = try await sender.send(signer: signer, receiverId: "bob.near", actions: [.transfer(deposit: 10)])
+
+        XCTAssertEqual(transaction.expiresAfterHeight, Int.max &+ TransactionSender.transactionValidityBlocks)
+    }
 }

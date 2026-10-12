@@ -8,9 +8,10 @@ import HsToolKit
 /// the kit never holds a key - a `Signer` is passed into each call that signs.
 public class Kit {
     public static let syncInterval: TimeInterval = 15
-    /// Session request timeout of every NEAR RPC and FastNEAR call (Android `connectTimeout`): a node
-    /// that does not answer is left for the next one after 10 s, not URLSession's 60 s. `send_tx`
-    /// sets its own, longer timeout per request.
+    /// Request timeout of every NEAR RPC and FastNEAR call: a node that sends nothing for 10 s, at any
+    /// point of the request, is left for the next one instead of after URLSession's 60 s. Stricter
+    /// than Android, whose 10 s covers the connection only and reads wait 60 s. `send_tx` sets its
+    /// own 30 s per request (Android 60 s).
     static let requestTimeout: TimeInterval = 10
     public static let tokenNative = TransactionTag.tokenNative
 
@@ -428,21 +429,6 @@ public extension Kit {
     }
 }
 
-// MARK: - Fees without a receiver
-
-public extension Kit {
-    /// yoctoNEAR a NEAR transfer needs in the worst case, when the receiver is an implicit account
-    /// the transfer creates: gas bought at the minimum purchase price plus the account creation
-    /// charge. Independent of the block gas price while that stays below the minimum, so it bounds
-    /// "send max" before the receiver is known (Android `BaseNearAdapter.WORST_CASE_TRANSFER_REQUIRED`).
-    static let worstCaseTransferRequired: BigUInt = FeeCalculator().estimate(
-        actions: [.transfer(deposit: 1)],
-        receiverIsImplicit: true,
-        createsAccount: true,
-        gasPrice: 0
-    ).requiredBalance
-}
-
 // MARK: - Wallet-free queries
 
 /// Lookups for an account no kit is open for, e.g. adding a token or restoring a key. Static and
@@ -529,7 +515,7 @@ public extension Kit {
         let auth = FastNearAuth(apiKey: fastNearApiKey, logger: logger)
         let rpcApiProvider = try rpcApiProvider(urls: rpcUrls, networkManager: networkManager, auth: auth)
         let indexerProvider = FastNearProvider(network: network, auth: auth, networkManager: networkManager)
-        let dbPool = try KitDatabase.pool(network: network, walletId: walletId)
+        let dbPool = try KitDatabase.pool(network: network, walletId: walletId, accountId: accountId)
 
         return try instance(
             accountId: accountId, network: network, rpcApiProvider: rpcApiProvider, indexerProvider: indexerProvider,
@@ -537,7 +523,7 @@ public extension Kit {
         )
     }
 
-    /// Removes the databases of every wallet not listed, for both networks.
+    /// Removes the databases of every account of every wallet not listed, for both networks.
     static func clear(exceptFor walletIds: [String]) throws {
         try KitDatabase.clear(exceptFor: walletIds)
     }

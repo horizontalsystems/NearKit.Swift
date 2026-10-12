@@ -42,18 +42,6 @@ final class TransactionStorage {
             try db.create(index: "transactionTag_token", on: TransactionTagRecord.databaseTableName, columns: [TransactionTagRecord.Columns.token.name])
         }
 
-        // History tags now follow `Transaction.nearMoved`, which needs the method name of each
-        // deposit that older records lack: the history is rebuilt from the network (Android
-        // database versions 2 and 3, destructive fallback). MainStorage, which owns the sync
-        // cursor, is migrated first.
-        migrator.registerMigration("rebuildHistoryForNearMovedTags") { db in
-            try TransactionTagRecord.deleteAll(db)
-            try Transaction.deleteAll(db)
-            if try db.tableExists(TransactionSyncState.databaseTableName) {
-                try TransactionSyncState.deleteAll(db)
-            }
-        }
-
         return migrator
     }
 }
