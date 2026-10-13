@@ -31,6 +31,14 @@ public class AccountState: Record, Equatable {
         super.init()
     }
 
+    convenience init(view: AccountView?) {
+        guard let view else {
+            self.init(exists: false, amount: 0, locked: 0, storageUsage: 0, hasContract: false)
+            return
+        }
+        self.init(exists: true, amount: view.amount, locked: view.locked, storageUsage: view.storageUsage, hasContract: view.hasContract)
+    }
+
     /// Balance held for storage staking: none up to the zero-balance limit, above it the whole
     /// usage is staked, and locked stake counts towards it.
     public var storageStaked: BigUInt {

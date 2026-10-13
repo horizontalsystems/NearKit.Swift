@@ -44,6 +44,18 @@ let ftTx = try await kit.sendFt(contractId: "usdt.tether-token.near", receiverId
 
 A watch-only wallet opens the kit with any account id and no signer.
 
+Picking the account a restored phrase opens (the implicit one is always first):
+
+```swift
+let publicKey = try Signer.publicKey(seed: seed)
+let accounts = try await Kit.findAccounts(publicKey: publicKey, network: .mainNet)
+for accountId in accounts {
+    let state = try await Kit.accountState(accountId: accountId, network: .mainNet)   // available, hasContract
+    let keys = try await Kit.accessKeys(accountId: accountId, network: .mainNet)      // other keys on the account
+}
+let usable = try await Kit.hasFullAccess(accountId: "alice.near", publicKey: publicKey, network: .mainNet)
+```
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

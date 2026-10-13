@@ -66,4 +66,30 @@ final class MainnetReadTests: XCTestCase {
         print("accounts for key: \(accounts)")
         XCTAssertEqual(accounts.first, accountId)
     }
+
+    // the lookups an account picker needs (Android `MainnetReadTest.readsNamedAccountForPicker`)
+    func testReadsNamedAccountForPicker() async throws {
+        let rootKey = try PublicKey(string: "ed25519:bN6etqmzLFHuhdrT1Mzd2cHWH5ZjEHfFq2LdEnLZ9GD")
+        let words = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".split(separator: " ").map(String.init)
+        let otherKey = try Signer.instance(seed: XCTUnwrap(Mnemonic.seed(mnemonic: words))).publicKey
+
+        let state = try await Kit.accountState(accountId: "root.near", network: network)
+        XCTAssertTrue(state.exists)
+        XCTAssertGreaterThan(state.amount, 0)
+        let missing = try await Kit.accountState(accountId: "no-such-account-hs-test.near", network: network)
+        XCTAssertFalse(missing.exists)
+
+        let rootAccess = try await Kit.hasFullAccess(accountId: "root.near", publicKey: rootKey, network: network)
+        XCTAssertTrue(rootAccess)
+        let otherAccess = try await Kit.hasFullAccess(accountId: "root.near", publicKey: otherKey, network: network)
+        XCTAssertFalse(otherAccess)
+        let missingAccess = try await Kit.hasFullAccess(accountId: "no-such-account-hs-test.near", publicKey: rootKey, network: network)
+        XCTAssertFalse(missingAccess)
+
+        let keys = try await Kit.accessKeys(accountId: "root.near", network: network)
+        XCTAssertTrue(keys.contains { $0.publicKey == rootKey.description && $0.isFullAccess })
+        XCTAssertTrue(keys.contains { $0.publicKey != rootKey.description && $0.isFullAccess })
+        let missingKeys = try await Kit.accessKeys(accountId: "no-such-account-hs-test.near", network: network)
+        XCTAssertTrue(missingKeys.isEmpty)
+    }
 }

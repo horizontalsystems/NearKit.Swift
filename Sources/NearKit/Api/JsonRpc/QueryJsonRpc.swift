@@ -40,8 +40,33 @@ class ViewAccountJsonRpc: QueryJsonRpc<AccountView> {
             locked: try result.requireBigUInt("locked"),
             storageUsage: try result.requireUInt64("storage_usage"),
             codeHash: try result.requireString("code_hash"),
+            globalContractHash: result.string("global_contract_hash"),
+            globalContractAccountId: result.string("global_contract_account_id"),
             blockHeight: try result.requireHeight("block_height")
         )
+    }
+}
+
+class ViewAccessKeyListJsonRpc: QueryJsonRpc<[AccessKeyInfo]> {
+    init(accountId: String) {
+        super.init(params: ["request_type": "view_access_key_list", "account_id": accountId])
+    }
+
+    // A function-call key's permission is an object, a full-access key's the string "FullAccess".
+    // Keys stay strings: an account may hold secp256k1 keys this kit cannot parse.
+    override func parseQuery(result: RpcJson) throws -> [AccessKeyInfo] {
+        guard let keys = result.array("keys") else {
+            throw InvalidResponse("view_access_key_list: missing keys")
+        }
+        return try keys.map { item in
+            guard let key = item as? RpcJson else {
+                throw InvalidResponse("view_access_key_list: key is not an object")
+            }
+            return AccessKeyInfo(
+                publicKey: try key.requireString("public_key"),
+                isFullAccess: key.object("access_key")?.string("permission") == "FullAccess"
+            )
+        }
     }
 }
 

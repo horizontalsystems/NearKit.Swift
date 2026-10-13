@@ -142,9 +142,7 @@ final class SyncManager {
             }
 
             let view = try await rpcApiProvider.viewAccount(accountId: accountId)
-            let accountState = view.map {
-                AccountState(exists: true, amount: $0.amount, locked: $0.locked, storageUsage: $0.storageUsage, hasContract: $0.hasContract)
-            } ?? .empty
+            let accountState = AccountState(view: view)
             if accountState != self.accountState {
                 try storage.save(accountState: accountState)
                 self.accountState = accountState

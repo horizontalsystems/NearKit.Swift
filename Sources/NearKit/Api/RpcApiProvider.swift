@@ -169,6 +169,15 @@ extension RpcApiProvider {
         }
     }
 
+    /// Every key on the account; empty when the account does not exist.
+    func viewAccessKeyList(accountId: String) async throws -> [AccessKeyInfo] {
+        do {
+            return try await fetch(rpc: ViewAccessKeyListJsonRpc(accountId: accountId))
+        } catch let error as RpcError where error.name == RpcError.unknownAccount {
+            return []
+        }
+    }
+
     func callFunction(contractId: String, methodName: String, argsJson: String = "{}") async throws -> Data {
         try await fetch(rpc: CallFunctionJsonRpc(contractId: contractId, methodName: methodName, argsJson: argsJson))
     }

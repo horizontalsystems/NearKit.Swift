@@ -445,6 +445,22 @@ public extension Kit {
         return try await findAccounts(publicKey: publicKey, rpcApiProvider: rpcApiProvider, indexerProvider: indexerProvider)
     }
 
+    /// Current state of any account, `AccountState.empty` when it does not exist.
+    static func accountState(accountId: String, network: Network, rpcUrls: [URL]? = nil, fastNearApiKey: String? = nil) async throws -> AccountState {
+        try await accountState(accountId: accountId, rpcApiProvider: lookupRpcApiProvider(network: network, rpcUrls: rpcUrls, fastNearApiKey: fastNearApiKey))
+    }
+
+    /// Whether `publicKey` can sign anything for `accountId`. False when the key has only
+    /// function-call access, is not on the account, or the account does not exist.
+    static func hasFullAccess(accountId: String, publicKey: PublicKey, network: Network, rpcUrls: [URL]? = nil, fastNearApiKey: String? = nil) async throws -> Bool {
+        try await hasFullAccess(accountId: accountId, publicKey: publicKey, rpcApiProvider: lookupRpcApiProvider(network: network, rpcUrls: rpcUrls, fastNearApiKey: fastNearApiKey))
+    }
+
+    /// Every key on `accountId`, full-access or not; empty when the account does not exist.
+    static func accessKeys(accountId: String, network: Network, rpcUrls: [URL]? = nil, fastNearApiKey: String? = nil) async throws -> [AccessKeyInfo] {
+        try await accessKeys(accountId: accountId, rpcApiProvider: lookupRpcApiProvider(network: network, rpcUrls: rpcUrls, fastNearApiKey: fastNearApiKey))
+    }
+
     /// Token metadata without a kit (adding a token by its contract id). Not cached.
     static func ftMetadata(contractId: String, rpcUrls: [URL]) async throws -> FtMetadata {
         try await ftMetadata(contractId: contractId, rpcApiProvider: rpcApiProvider(urls: rpcUrls, networkManager: NetworkManager(timeout: requestTimeout)))
@@ -456,15 +472,57 @@ public extension Kit {
 }
 
 extension Kit {
+    /// Most candidates `findAccounts` confirms: anyone can add a public key to accounts they own, and
+    /// a key flooded with such accounts must not keep the search running.
+    static let maxAccountCandidates = 20
+
     static func findAccounts(publicKey: PublicKey, rpcApiProvider: RpcApiProvider, indexerProvider: IIndexerProvider) async throws -> [String] {
         let implicit = publicKey.implicitAccountId
+        var candidates = [String]()
+        for accountId in try await indexerProvider.accountIds(publicKey: publicKey.description)
+            where accountId != implicit && AccountId.isValid(accountId) && !candidates.contains(accountId)
+        {
+            candidates.append(accountId)
+        }
+
         var accounts = [implicit]
-        for accountId in try await indexerProvider.accountIds(publicKey: publicKey.description) where accountId != implicit && AccountId.isValid(accountId) && !accounts.contains(accountId) {
-            if try await rpcApiProvider.viewAccessKey(accountId: accountId, publicKey: publicKey.description)?.isFullAccess == true {
-                accounts.append(accountId)
+        var lastError: Error?
+        var confirmed = 0
+        for accountId in candidates.prefix(maxAccountCandidates) {
+            do {
+                if try await rpcApiProvider.viewAccessKey(accountId: accountId, publicKey: publicKey.description)?.isFullAccess == true {
+                    accounts.append(accountId)
+                }
+                confirmed += 1
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch {
+                // one account the nodes fail to answer for is left out; only when none could be
+                // checked is the search itself a failure
+                lastError = error
             }
         }
+        if confirmed == 0, let lastError {
+            throw lastError
+        }
         return accounts
+    }
+
+    static func accountState(accountId: String, rpcApiProvider: RpcApiProvider) async throws -> AccountState {
+        let view = try await rpcApiProvider.viewAccount(accountId: accountId)
+        return AccountState(view: view)
+    }
+
+    static func hasFullAccess(accountId: String, publicKey: PublicKey, rpcApiProvider: RpcApiProvider) async throws -> Bool {
+        try await rpcApiProvider.viewAccessKey(accountId: accountId, publicKey: publicKey.description)?.isFullAccess == true
+    }
+
+    static func accessKeys(accountId: String, rpcApiProvider: RpcApiProvider) async throws -> [AccessKeyInfo] {
+        try await rpcApiProvider.viewAccessKeyList(accountId: accountId)
+    }
+
+    private static func lookupRpcApiProvider(network: Network, rpcUrls: [URL]?, fastNearApiKey: String?) throws -> RpcApiProvider {
+        try rpcApiProvider(urls: rpcUrls ?? network.rpcUrls, networkManager: NetworkManager(timeout: requestTimeout), auth: FastNearAuth(apiKey: fastNearApiKey))
     }
 
     static func doesAccountExist(accountId: String, rpcApiProvider: RpcApiProvider) async throws -> Bool {
